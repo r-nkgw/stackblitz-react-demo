@@ -1,4 +1,4 @@
-import { QueryResult, QueryRequest, QueryError } from '../types/bigquery';
+import type { QueryResult, QueryRequest, QueryError } from '../types/bigquery';
 
 // 実際の環境では、バックエンドAPIを通じてBigQueryにアクセスします
 // フロントエンドから直接BigQueryにアクセスするのはセキュリティ上推奨されません

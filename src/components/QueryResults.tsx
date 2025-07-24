@@ -1,6 +1,6 @@
 import React from 'react';
 import { CheckCircle, AlertCircle, Table } from 'lucide-react';
-import { QueryResult, QueryError } from '../types/bigquery';
+import type { QueryResult, QueryError } from '../types/bigquery';
 
 interface QueryResultsProps {
   result?: QueryResult;

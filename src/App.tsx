@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { QueryForm } from './components/QueryForm'
 import { QueryResults } from './components/QueryResults'
 import { executeBigQueryQuery } from './services/bigqueryService'
-import { QueryResult, QueryError } from './types/bigquery'
+import type { QueryResult, QueryError } from './types/bigquery'
 import { Cloud } from 'lucide-react'
 import './App.css'
 
