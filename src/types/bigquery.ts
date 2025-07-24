@@ -9,9 +9,16 @@ export interface QueryResult {
 export interface QueryRequest {
   projectId: string;
   query: string;
+  keyFile?: string;
 }
 
 export interface QueryError {
   message: string;
   code?: string;
+}
+
+export interface BigQueryConfig {
+  projectId: string;
+  keyFilename?: string;
+  credentials?: any;
 }

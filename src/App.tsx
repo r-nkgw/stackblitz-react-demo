@@ -11,13 +11,13 @@ function App() {
   const [error, setError] = useState<QueryError | undefined>(undefined)
   const [isLoading, setIsLoading] = useState(false)
 
-  const handleQuerySubmit = async (projectId: string) => {
+  const handleQuerySubmit = async (projectId: string, credentials?: any) => {
     setIsLoading(true)
     setError(undefined)
     setResult(undefined)
 
     try {
-      const queryResult = await executeBigQueryQuery(projectId)
+      const queryResult = await executeBigQueryQuery(projectId, 'SELECT * FROM mst_company', credentials)
       setResult(queryResult)
     } catch (err) {
       setError(err as QueryError)

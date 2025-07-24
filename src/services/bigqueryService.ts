@@ -1,106 +1,114 @@
-import type { QueryResult, QueryRequest, QueryError } from '../types/bigquery';
+import { BigQuery } from '@google-cloud/bigquery';
+import type { QueryResult, QueryRequest, QueryError, BigQueryConfig } from '../types/bigquery';
 
-// 実際の環境では、バックエンドAPIを通じてBigQueryにアクセスします
-// フロントエンドから直接BigQueryにアクセスするのはセキュリティ上推奨されません
+// BigQueryクライアントのインスタンス
+let bigqueryClient: BigQuery | null = null;
+
+// BigQueryクライアントを初期化
+const initializeBigQuery = (config: BigQueryConfig): BigQuery => {
+  if (!bigqueryClient) {
+    bigqueryClient = new BigQuery({
+      projectId: config.projectId,
+      keyFilename: config.keyFilename,
+      credentials: config.credentials,
+    });
+  }
+  return bigqueryClient;
+};
+
 export const executeBigQueryQuery = async (
   projectId: string,
-  query: string = 'SELECT * FROM mst_company'
+  query: string = 'SELECT * FROM mst_company',
+  credentials?: any
 ): Promise<QueryResult> => {
   try {
-    // 実際の実装では、バックエンドAPIエンドポイントを呼び出します
-    // 例: const response = await fetch('/api/bigquery', { ... });
-    
-    // デモ用のモックデータ
-    await new Promise(resolve => setTimeout(resolve, 2000)); // 2秒の遅延をシミュレート
-    
-    // モックデータを返す（実際の環境では削除してください）
-    const mockResult: QueryResult = {
-      schema: [
-        { name: 'company_id', type: 'STRING' },
-        { name: 'company_name', type: 'STRING' },
-        { name: 'industry', type: 'STRING' },
-        { name: 'founded_year', type: 'INTEGER' },
-        { name: 'employee_count', type: 'INTEGER' },
-        { name: 'revenue', type: 'FLOAT' },
-        { name: 'created_at', type: 'TIMESTAMP' }
-      ],
-      rows: [
-        {
-          company_id: 'COMP001',
-          company_name: '株式会社テクノロジー',
-          industry: 'IT・ソフトウェア',
-          founded_year: 2010,
-          employee_count: 150,
-          revenue: 2500000000,
-          created_at: '2024-01-15T09:30:00Z'
-        },
-        {
-          company_id: 'COMP002',
-          company_name: '製造業株式会社',
-          industry: '製造業',
-          founded_year: 1995,
-          employee_count: 500,
-          revenue: 8000000000,
-          created_at: '2024-01-16T10:15:00Z'
-        },
-        {
-          company_id: 'COMP003',
-          company_name: 'サービス企業',
-          industry: 'サービス業',
-          founded_year: 2018,
-          employee_count: 75,
-          revenue: 1200000000,
-          created_at: '2024-01-17T14:20:00Z'
-        },
-        {
-          company_id: 'COMP004',
-          company_name: '金融グループ',
-          industry: '金融・保険',
-          founded_year: 1980,
-          employee_count: 1200,
-          revenue: 15000000000,
-          created_at: '2024-01-18T08:45:00Z'
-        },
-        {
-          company_id: 'COMP005',
-          company_name: '小売チェーン',
-          industry: '小売業',
-          founded_year: 2005,
-          employee_count: 300,
-          revenue: 4500000000,
-          created_at: '2024-01-19T11:30:00Z'
-        }
-      ]
-    };
-
-    return mockResult;
-
-    /* 実際のBigQuery実装例（バックエンドで実装）:
-    
-    const response = await fetch('/api/bigquery/query', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        projectId,
-        query
-      })
+    // BigQueryクライアントを初期化
+    const bigquery = initializeBigQuery({
+      projectId,
+      credentials
     });
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.message || 'クエリの実行に失敗しました');
-    }
+    // クエリオプションを設定
+    const options = {
+      query: query,
+      location: 'US', // データセットの場所に応じて変更
+    };
 
-    return await response.json();
-    */
+    // クエリを実行
+    const [job] = await bigquery.createQueryJob(options);
+    console.log(`Job ${job.id} started.`);
+
+    // ジョブの完了を待機
+    const [rows] = await job.getQueryResults();
+
+    // スキーマ情報を取得
+    const schema = job.metadata?.configuration?.query?.destinationTable 
+      ? await getTableSchema(bigquery, job.metadata.configuration.query.destinationTable)
+      : inferSchemaFromRows(rows);
+
+    return {
+      schema,
+      rows: rows.map(row => ({ ...row }))
+    };
 
   } catch (error) {
     console.error('BigQuery error:', error);
+    
+    // エラーメッセージを詳細化
+    let errorMessage = 'クエリの実行中にエラーが発生しました';
+    let errorCode = 'QUERY_ERROR';
+    
+    if (error instanceof Error) {
+      errorMessage = error.message;
+      
+      // 認証エラーの場合
+      if (error.message.includes('authentication') || error.message.includes('credentials')) {
+        errorMessage = '認証に失敗しました。サービスアカウントキーを確認してください。';
+        errorCode = 'AUTH_ERROR';
+      }
+      // プロジェクトIDエラーの場合
+      else if (error.message.includes('project')) {
+        errorMessage = 'プロジェクトIDが無効です。正しいGCPプロジェクトIDを入力してください。';
+        errorCode = 'PROJECT_ERROR';
+      }
+      // テーブルが見つからない場合
+      else if (error.message.includes('not found') || error.message.includes('does not exist')) {
+        errorMessage = 'テーブル "mst_company" が見つかりません。テーブル名とデータセットを確認してください。';
+        errorCode = 'TABLE_NOT_FOUND';
+      }
+    }
+    
     throw {
-      message: error instanceof Error ? error.message : 'クエリの実行中にエラーが発生しました',
-      code: 'QUERY_ERROR'
+      message: errorMessage,
+      code: errorCode
     } as QueryError;
   }
+};
+
+// テーブルスキーマを取得する補助関数
+const getTableSchema = async (bigquery: BigQuery, tableRef: any) => {
+  try {
+    const dataset = bigquery.dataset(tableRef.datasetId);
+    const table = dataset.table(tableRef.tableId);
+    const [metadata] = await table.getMetadata();
+    
+    return metadata.schema.fields.map((field: any) => ({
+      name: field.name,
+      type: field.type
+    }));
+  } catch (error) {
+    console.warn('Could not get table schema:', error);
+    return [];
+  }
+};
+
+// 行データからスキーマを推測する補助関数
+const inferSchemaFromRows = (rows: any[]) => {
+  if (rows.length === 0) return [];
+  
+  const firstRow = rows[0];
+  return Object.keys(firstRow).map(key => ({
+    name: key,
+    type: typeof firstRow[key] === 'number' ? 'NUMERIC' : 'STRING'
+  }));
 };
